@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ScriptShift — Smart Reader & Language Explorer</title>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    
+    body {
+      background: radial-gradient(circle at top, #1e293b 0%, #0f172a 100%);
+      color: #f8fafc;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 16px;
+    }
+
+    .container {
+      background: rgba(30, 41, 59, 0.85);
+      backdrop-filter: blur(12px);
+      width: 100%;
+      max-width: 640px;
+      padding: 28px 24px;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .container:hover {
+      border-color: rgba(56, 189, 248, 0.4);
+      box-shadow: 0 25px 50px rgba(56, 189, 248, 0.15);
+    }
+
+    .header { text-align: center; margin-bottom: 20px; }
+    
+    .brand {
+      font-size: clamp(28px, 6vw, 36px);
+      font-weight: 800;
+      background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
+      animation: shine 6s linear infinite;
+    }
+
+    @keyframes shine {
+      to { background-position: 200% center; }
+    }
+
+    .tagline {
+      color: #94a3b8;
+      font-size: clamp(12px, 3.5vw, 14px);
+      margin-top: 4px;
+      font-weight: 500;
+    }
+
+    .header-badges {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+
+    .badge-item {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid #334155;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #38bdf8;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.3s ease;
+    }
+
+    .badge-item:hover {
+      background: #334155;
+      border-color: #38bdf8;
+      color: #ffffff;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(56, 189, 248, 0.25);
+    }
+
+    .input-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 10px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      color: #94a3b8;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      transition: all 0.3s ease;
+    }
+
+    .tab-btn:hover {
+      border-color: #38bdf8;
+      color: #f8fafc;
+      transform: translateY(-1px);
+    }
+
+    .tab-btn.active {
+      background: #334155;
+      color: #38bdf8;
+      border-color: #38bdf8;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.15);
+    }
+
+    .input-panel { display: none; margin-bottom: 18px; }
+    .input-panel.active { display: block; }
+
+    .textarea-wrapper {
+      position: relative;
+    }
+
+    textarea {
+      width: 100%;
+      height: 120px;
+      padding: 14px;
+      background: #0f172a;
+      border: 2px solid #334155;
+      border-radius: 12px;
+      color: #f8fafc;
+      font-size: 15px;
+      resize: vertical;
+      outline: none;
+      transition: all 0.3s ease;
+    }
+
+    textarea:hover { border-color: #475569; }
+
+    textarea:focus {
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
+    }
+
+    .char-counter {
+      position: absolute;
+      bottom: 10px;
+      right: 12px;
+      font-size: 11px;
+      color: #64748b;
+      font-weight: 600;
+      pointer-events: none;
+    }
+
+    .file-drop {
+      border: 2px dashed #334155;
+      border-radius: 12px;
+      padding: 24px 16px;
+      text-align: center;
+      background: #0f172a;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .file-drop:hover {
+      border-color: #38bdf8;
+      background: #1e293b;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .file-drop p { color: #94a3b8; font-size: 13px; margin-top: 8px; }
+
+    .btn {
+      width: 100%;
+      background: linear-gradient(90deg, #38bdf8, #6366f1);
+      color: #ffffff;
+      border: none;
+      padding: 14px;
+      font-size: 15px;
+      font-weight: 700;
+      border-radius: 12px;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .btn::before {
+      content: '';
+      position: absolute;
+      top: 0; left: -100%;
+      width: 100%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+      transition: left 0.5s ease;
+    }
+
+    .btn:hover::before { left: 100%; }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4);
+    }
+
+    .btn:active { transform: translateY(0); }
+
+    .results {
+      margin-top: 24px;
+      display: none;
+      border-top: 1px solid #334155;
+      padding-top: 20px;
+      animation: fadeIn 0.4s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .badge {
+      display: inline-block;
+      background: rgba(56, 189, 248, 0.1);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 14px;
+      transition: all 0.3s ease;
+    }
+
+    .badge:hover {
+      background: rgba(56, 189, 248, 0.2);
+      transform: translateY(-1px);
+    }
+
+    .output-card {
+      background: #0f172a;
+      border: 1px solid #334155;
+      padding: 16px;
+      border-radius: 12px;
+      font-size: 15px;
+      line-height: 1.6;
+      margin-bottom: 14px;
+      word-break: break-word;
+      white-space: pre-wrap;
+      color: #e2e8f0;
+      min-height: 50px;
+      transition: all 0.3s ease;
+    }
+
+    .output-card:hover {
+      border-color: #38bdf8;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+    }
+
+    .action-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .secondary-btn {
+      flex: 1;
+      background: #334155;
+      color: #f8fafc;
+      border: 1px solid transparent;
+      padding: 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      transition: all 0.3s ease;
+    }
+
+    .secondary-btn:hover {
+      background: #475569;
+      border-color: #38bdf8;
+      transform: translateY(-1px);
+    }
+
+    .wiki-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: #334155;
+      color: #f8fafc;
+      padding: 12px;
+      border-radius: 12px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 13px;
+      border: 1px solid transparent;
+      text-align: center;
+      transition: all 0.3s ease;
+    }
+
+    .wiki-btn:hover {
+      background: #475569;
+      border-color: #38bdf8;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Mobile responsiveness adjustments */
+    @media (max-width: 480px) {
+      body { padding: 10px; }
+      .container { padding: 20px 16px; }
+      .header-badges { flex-direction: column; width: 100%; gap: 6px; }
+      .badge-item { width: 100%; justify-content: center; text-align: center; }
+      .action-row { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="header">
+      <div class="brand">ScriptShift</div>
+      <div class="tagline">Shift Languages. Uncover Cultures.</div>
+      
+      <div class="header-badges">
+        <span class="badge-item">🤖 Powered by Scripty AI</span>
+        <a href="instructions.html" class="badge-item">📖 How to use ScriptShift →</a>
+      </div>
+    </div>
+
+    <div class="input-tabs">
+      <button class="tab-btn active" onclick="switchTab('text')">Text Input</button>
+      <button class="tab-btn" onclick="switchTab('image')">Image OCR</button>
+    </div>
+    
+    <!-- Text Input Panel -->
+    <div class="input-panel active" id="textPanel">
+      <div class="textarea-wrapper">
+        <textarea id="inputText" placeholder="Paste foreign text here to test (e.g. Arabic, French, Japanese)..." dir="auto" oninput="updateCounter()"></textarea>
+        <div class="char-counter" id="charCounter">0 chars</div>
+      </div>
+    </div>
+
+    <!-- Image OCR Panel -->
+    <div class="input-panel" id="imagePanel">
+      <div class="file-drop" onclick="document.getElementById('imageInput').click()">
+        📷
+        <p>Click to upload or drag an image containing foreign text</p>
+        <input type="file" id="imageInput" accept="image/*" style="display:none;" onchange="handleImageUpload(event)">
+      </div>
+    </div>
+
+    <button class="btn" onclick="processScript()">Shift & Explore</button>
+
+    <div class="results" id="resultsSection">
+      <span class="badge" id="detectedLang">Detected Language: -</span>
+      <div class="output-card" id="translatedText" dir="auto">Translating...</div>
+
+      <div class="action-row">
+        <button class="secondary-btn" onclick="copyTranslation()">📋 Copy Translation</button>
+      </div>
+      
+      <a href="#" target="_blank" id="wikiLink" class="wiki-btn">
+        📖 Explore Language History on Wikipedia →
+      </a>
+    </div>
+  </div>
+
+  <script>
+    const languageDictionary = {
+      'ar': 'Arabic', 'fr': 'French', 'es': 'Spanish', 
+      'de': 'German', 'ja': 'Japanese', 'ru': 'Russian', 
+      'hi': 'Hindi', 'zh': 'Chinese', 'it': 'Italian',
+      'pt': 'Portuguese', 'ko': 'Korean', 'nl': 'Dutch'
+    };
+
+    let activeTab = 'text';
+    let ocrExtractedText = '';
+
+    function updateCounter() {
+      const val = document.getElementById('inputText').value;
+      document.getElementById('charCounter').innerText = `${val.length} chars`;
+    }
+
+    function switchTab(tab) {
+      activeTab = tab;
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.input-panel').forEach(panel => panel.classList.remove('active'));
+
+      if (tab === 'text') {
+        document.querySelectorAll('.tab-btn')[0].classList.add('active');
+        document.getElementById('textPanel').classList.add('active');
+      } else {
+        document.querySelectorAll('.tab-btn')[1].classList.add('active');
+        document.getElementById('imagePanel').classList.add('active');
+      }
+    }
+
+    function decodeHTMLEntities(text) {
+      const textArea = document.createElement('textarea');
+      textArea.innerHTML = text;
+      return textArea.value;
+    }
+
+    function typeWriterEffect(element, text, speed = 15) {
+      element.innerText = '';
+      let i = 0;
+      function type() {
+        if (i < text.length) {
+          element.innerText += text.charAt(i);
+          i++;
+          setTimeout(type, speed);
+        }
+      }
+      type();
+    }
+
+    async function handleImageUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const resultsSection = document.getElementById('resultsSection');
+      const translatedText = document.getElementById('translatedText');
+      const detectedLang = document.getElementById('detectedLang');
+
+      resultsSection.style.display = "block";
+      detectedLang.innerText = "Scripty Status: Scanning image with OCR...";
+      translatedText.innerText = "Extracting text from image...";
+
+      try {
+        const worker = await Tesseract.createWorker();
+        await worker.loadLanguage('eng+ara+fra+spa');
+        await worker.initialize('eng+ara+fra+spa');
+        const { data: { text } } = await worker.recognize(file);
+        await worker.terminate();
+
+        ocrExtractedText = text.trim();
+        if (!ocrExtractedText) {
+          translatedText.innerText = "Could not detect clear text in image. Please try pasting the text manually.";
+        } else {
+          translatedText.innerText = `Extracted Text:\n"${ocrExtractedText}"\n\nClick 'Shift & Explore' to translate.`;
+        }
+      } catch (err) {
+        translatedText.innerText = "OCR processing failed. Try pasting text directly.";
+      }
+    }
+
+    function polishTranslation(rawText) {
+      if (!rawText) return rawText;
+
+      return rawText
+        .replace(/\bour gallery\b/gi, 'our exhibition')
+        .replace(/\bour showroom\b/gi, 'our exhibition')
+        .replace(/\ba gallery\b/gi, 'an exhibition')
+        .replace(/\bthe gallery\b/gi, 'the exhibition');
+    }
+
+    async function processScript() {
+      let textToProcess = activeTab === 'text' 
+        ? document.getElementById('inputText').value.trim() 
+        : ocrExtractedText;
+
+      if (!textToProcess) return alert("Please enter text or upload an image first!");
+
+      const resultsSection = document.getElementById('resultsSection');
+      const translatedText = document.getElementById('translatedText');
+      const detectedLang = document.getElementById('detectedLang');
+      const wikiLink = document.getElementById('wikiLink');
+
+      translatedText.innerText = "Scripty is analyzing script & translating...";
+      resultsSection.style.display = "block";
+
+      try {
+        const response = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(textToProcess)}&langpair=autodetect|en`);
+        const data = await response.json();
+
+        let rawTranslation = data.responseData.translatedText;
+        rawTranslation = decodeHTMLEntities(rawTranslation);
+
+        const langCode = (data.responseData.detectedLanguage || '').toLowerCase();
+        const langName = languageDictionary[langCode];
+
+        if (!langName) {
+          detectedLang.innerText = "Scripty Status: Language not updated yet, try next time!";
+          translatedText.innerText = "Scripty hasn't indexed this specific script variant yet. Try another language sample!";
+          wikiLink.style.display = "none";
+          return;
+        }
+
+        const polishedOutput = polishTranslation(rawTranslation);
+
+        typeWriterEffect(translatedText, polishedOutput);
+        detectedLang.innerText = `Detected: ${langName} (${langCode.toUpperCase()})`;
+        wikiLink.style.display = "flex";
+
+        const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(langName)}_language`;
+        wikiLink.onclick = function(e) {
+          e.preventDefault();
+          const win = window.open(wikiUrl, '_blank', 'noopener,noreferrer');
+          if (!win || win.closed || typeof win.closed === 'undefined') {
+            window.location.href = wikiUrl;
+          }
+        };
+
+      } catch (error) {
+        translatedText.innerText = "Unable to fetch translation. Please check connection.";
+      }
+    }
+
+    function copyTranslation() {
+      const text = document.getElementById('translatedText').innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        alert("Translation copied to clipboard!");
+      });
+    }
+  </script>
+</body>
+</html>
